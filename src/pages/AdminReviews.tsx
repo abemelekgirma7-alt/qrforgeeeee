@@ -34,7 +34,12 @@ export default function AdminReviews() {
     if (authLoading) return;
     if (!user) { navigate("/auth", { replace: true }); return; }
     (async () => {
-      const { data, error } = await supabase.rpc("has_role", { _user_id: user.id, _role: "admin" });
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
       if (error) { setIsAdmin(false); return; }
       setIsAdmin(Boolean(data));
     })();
