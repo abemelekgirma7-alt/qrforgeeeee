@@ -165,9 +165,17 @@ export default function Scanner() {
   }, [tab]);
 
   /* ── Upload scan ── */
+  const MAX_BYTES = 8 * 1024 * 1024; // 8 MB
+  const ACCEPTED = ["image/png", "image/jpeg", "image/webp", "image/svg+xml", "image/gif", "image/bmp"];
   const decodeFile = async (f: File) => {
-    if (!f.type.startsWith("image/")) {
-      setError("Please choose an image file (PNG, JPG, WebP, or SVG).");
+    if (!f.type.startsWith("image/") || (f.type && !ACCEPTED.includes(f.type))) {
+      setResult(null);
+      setError(`Unsupported file type${f.type ? ` (“${f.type}”)` : ""}. Please upload a PNG, JPG, WebP, GIF, BMP or SVG image.`);
+      return;
+    }
+    if (f.size > MAX_BYTES) {
+      setResult(null);
+      setError(`That image is ${(f.size / 1024 / 1024).toFixed(1)} MB — please upload an image under 8 MB.`);
       return;
     }
     setError(null);
@@ -180,8 +188,11 @@ export default function Scanner() {
       const res = await reader.decodeFromImageUrl(url);
       setResult(res.getText());
       toast({ title: "QR code scanned!", description: "Result is ready below." });
-    } catch {
-      setError("No QR code found in that image. Try a clearer or tighter crop.");
+    } catch (err) {
+      const msg = err instanceof Error && /load|network|decode/i.test(err.message)
+        ? "We couldn't read that image — it may be corrupted or too low-resolution."
+        : "No QR code found in that image. Try a clearer photo or a tighter crop around the code.";
+      setError(msg);
     } finally {
       setUploadBusy(false);
     }
@@ -369,6 +380,12 @@ export default function Scanner() {
                     <><Upload className="mr-2 h-4 w-4" /> Upload image & scan</>
                   )}
                 </Button>
+                {error && tab === "upload" && (
+                  <div className="flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                    <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <p className="leading-snug">{error}</p>
+                  </div>
+                )}
                 {uploadPreview && !uploadBusy && (
                   <Button type="button" variant="outline" className="w-full" onClick={reset}>
                     <RefreshCcw className="mr-2 h-4 w-4" /> Choose a different image
@@ -380,7 +397,7 @@ export default function Scanner() {
 
 
           {/* ── RESULT ── */}
-          {(result || error) && (
+          {(result || (error && tab !== "upload")) && (
             <div className="mt-6 rounded-2xl border bg-card p-5">
                   {result && (
                 <>

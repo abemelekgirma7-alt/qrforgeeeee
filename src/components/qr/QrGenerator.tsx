@@ -178,6 +178,27 @@ export function QrGenerator({
 
   const payload = useMemo(() => buildQrPayload(form), [form]);
   const formError = useMemo(() => getFormError(form), [form]);
+  const styleWarning = useMemo(() => {
+    const fg = style.fg.toLowerCase();
+    const bg = style.bg.toLowerCase();
+    if (fg === bg) return "Foreground and background are identical — your QR will be invisible.";
+    // crude contrast check on hex colors
+    const toRgb = (h: string) => {
+      const m = h.replace("#", "");
+      if (m.length !== 6) return null;
+      return [parseInt(m.slice(0, 2), 16), parseInt(m.slice(2, 4), 16), parseInt(m.slice(4, 6), 16)];
+    };
+    const a = toRgb(fg);
+    const b = toRgb(bg);
+    if (a && b) {
+      const lum = (c: number[]) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+      if (Math.abs(lum(a) - lum(b)) < 60) return "Low contrast — scanners may struggle. Pick a darker foreground or lighter background.";
+    }
+    if (style.logoDataUrl && style.logoSize > 0.3 && style.errorCorrection !== "H") {
+      return "Large logo with low error-correction. Switch error correction to High for reliable scanning.";
+    }
+    return null;
+  }, [style]);
 
   const setType = (type: QrType) => {
     setForm((p) => ({ ...p, type }));
@@ -436,14 +457,19 @@ export function QrGenerator({
       </div>
 
       {/* LIVE PREVIEW — sticky on the right, premium scan card */}
-      <div className="surface-card w-full p-6 animate-fade-in-up lg:sticky lg:top-24">
-        <h3 className="mb-4 text-center text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+      <div className="surface-card w-full p-4 sm:p-6 animate-fade-in-up lg:sticky lg:top-24">
+        <h3 className="mb-3 text-center text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Live preview
         </h3>
-        <div className="mx-auto w-full max-w-[340px] aspect-square rounded-2xl bg-white p-3 shadow-elev-md flex items-center justify-center">
+        <div className="mx-auto w-full max-w-[200px] sm:max-w-[260px] lg:max-w-[320px] aspect-square rounded-2xl bg-white p-2 sm:p-3 shadow-elev-md flex items-center justify-center">
           <QrPreview data={payload} style={style} frame={false} />
         </div>
-        <p className="mx-auto mt-4 max-w-md break-all text-center text-xs text-muted-foreground">
+        {styleWarning && (
+          <p className="mx-auto mt-3 max-w-[260px] rounded-lg border border-amber-300/40 bg-amber-50 px-2.5 py-1.5 text-center text-[11px] font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+            ⚠ {styleWarning}
+          </p>
+        )}
+        <p className="mx-auto mt-3 max-w-md break-all text-center text-xs text-muted-foreground">
           {payload.slice(0, 140)}
           {payload.length > 140 ? "…" : ""}
         </p>
