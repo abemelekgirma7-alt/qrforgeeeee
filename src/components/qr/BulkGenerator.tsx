@@ -616,7 +616,7 @@ export function BulkGenerator() {
             <p className="text-[10px] text-muted-foreground">{activeIdx + 1} / {rows.length}</p>
           </div>
         ) : (
-          <div className="mx-auto flex aspect-square w-full max-w-[280px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-secondary/30 p-6 text-center">
+          <div className="mx-auto flex aspect-square w-full max-w-[180px] sm:max-w-[240px] lg:max-w-[280px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-secondary/30 p-6 text-center">
             <Layers className="h-8 w-8 text-muted-foreground/50" />
             <p className="text-xs text-muted-foreground">
               Add entries and click Generate to preview your QR codes here.
