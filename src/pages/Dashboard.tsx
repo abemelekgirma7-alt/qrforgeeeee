@@ -52,6 +52,7 @@ import { toast } from "sonner";
 import { generateShortCode, scanUrlFor } from "@/lib/api/shortCode";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { cn } from "@/lib/utils";
+import { AuthLoadingScreen } from "@/components/auth/AuthLoadingScreen";
 
 type DynamicQr = {
   id: string;
@@ -182,11 +183,7 @@ export default function Dashboard() {
   };
 
   if (authLoading || !user) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      </div>
-    );
+    return <AuthLoadingScreen message="Opening your dashboard…" />;
   }
 
   const totalScans = items?.reduce((s, i) => s + i.scan_count, 0) ?? 0;
