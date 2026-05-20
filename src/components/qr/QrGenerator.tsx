@@ -178,6 +178,27 @@ export function QrGenerator({
 
   const payload = useMemo(() => buildQrPayload(form), [form]);
   const formError = useMemo(() => getFormError(form), [form]);
+  const styleWarning = useMemo(() => {
+    const fg = style.fg.toLowerCase();
+    const bg = style.bg.toLowerCase();
+    if (fg === bg) return "Foreground and background are identical — your QR will be invisible.";
+    // crude contrast check on hex colors
+    const toRgb = (h: string) => {
+      const m = h.replace("#", "");
+      if (m.length !== 6) return null;
+      return [parseInt(m.slice(0, 2), 16), parseInt(m.slice(2, 4), 16), parseInt(m.slice(4, 6), 16)];
+    };
+    const a = toRgb(fg);
+    const b = toRgb(bg);
+    if (a && b) {
+      const lum = (c: number[]) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+      if (Math.abs(lum(a) - lum(b)) < 60) return "Low contrast — scanners may struggle. Pick a darker foreground or lighter background.";
+    }
+    if (style.logoDataUrl && style.logoSize > 0.3 && style.errorCorrection !== "H") {
+      return "Large logo with low error-correction. Switch error correction to High for reliable scanning.";
+    }
+    return null;
+  }, [style]);
 
   const setType = (type: QrType) => {
     setForm((p) => ({ ...p, type }));
