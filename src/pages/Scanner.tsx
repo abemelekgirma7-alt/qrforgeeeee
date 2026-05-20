@@ -397,7 +397,7 @@ export default function Scanner() {
 
 
           {/* ── RESULT ── */}
-          {(result || error) && (
+          {(result || (error && tab !== "upload")) && (
             <div className="mt-6 rounded-2xl border bg-card p-5">
                   {result && (
                 <>
