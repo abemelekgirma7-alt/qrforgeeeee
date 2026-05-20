@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
 import { useAuth } from "@/hooks/useAuth";
 import { AuthLoadingScreen } from "@/components/auth/AuthLoadingScreen";
 
@@ -42,18 +41,17 @@ export default function Auth() {
 
   const handleOAuth = async (provider: "google" | "apple") => {
     setBusy(true);
-    const result = await lovable.auth.signInWithOAuth(provider, {
-      redirect_uri: `${window.location.origin}${redirectTo}`,
-      extraParams: provider === "google" ? { prompt: "select_account" } : undefined,
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${window.location.origin}${redirectTo}`,
+        queryParams: provider === "google" ? { prompt: "select_account" } : undefined,
+      },
     });
-    if (result.error) {
-      toast.error(result.error.message || `Couldn't continue with ${provider}. Try again.`);
+    if (error) {
+      toast.error(error.message || `Couldn't continue with ${provider}. Try again.`);
       setBusy(false);
-      return;
     }
-    if (result.redirected) return;
-    setBusy(false);
-    navigate(redirectTo, { replace: true });
   };
 
   const rememberEmail = (value: string) => {
