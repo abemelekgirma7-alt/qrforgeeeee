@@ -102,41 +102,106 @@ export function buildPremiumQrSvg(
   const logoFraction = hasLogo ? Math.min(0.28, Math.max(0.12, style.logoSize)) : 0;
   const logoPadModules = Math.max(1.5, (style.logoMargin || 6) / 4);
 
-  const dotPaths: string[] = [];
-  const dotR = 0.42; // perfectly round dots
+  // Per-style geometry for a single module (1×1 in module units).
+  // Returns an SVG fragment drawn at module top-left (mx, my).
+  const renderModule = (mx: number, my: number): string => {
+    const cx = mx + 0.5;
+    const cy = my + 0.5;
+    switch (style.dotStyle) {
+      case "dots": {
+        const r = 0.45;
+        return `<circle cx="${cx}" cy="${cy}" r="${r}"/>`;
+      }
+      case "rounded": {
+        return `<rect x="${mx + 0.02}" y="${my + 0.02}" width="0.96" height="0.96" rx="0.28" ry="0.28"/>`;
+      }
+      case "extra-rounded": {
+        return `<rect x="${mx + 0.02}" y="${my + 0.02}" width="0.96" height="0.96" rx="0.48" ry="0.48"/>`;
+      }
+      case "classy":
+      case "classy-rounded": {
+        // Asymmetric: top-left + bottom-right rounded, other two square.
+        const r = style.dotStyle === "classy" ? 0.35 : 0.5;
+        const x0 = mx + 0.02;
+        const y0 = my + 0.02;
+        const w = 0.96;
+        return (
+          `<path d="M${x0 + r} ${y0} ` +
+          `H${x0 + w} V${y0 + w - r} ` +
+          `A${r} ${r} 0 0 1 ${x0 + w - r} ${y0 + w} ` +
+          `H${x0} V${y0 + r} ` +
+          `A${r} ${r} 0 0 1 ${x0 + r} ${y0} Z"/>`
+        );
+      }
+      case "square":
+      default:
+        return `<rect x="${mx}" y="${my}" width="1" height="1"/>`;
+    }
+  };
+
+  const dotFragments: string[] = [];
   for (let row = 0; row < matrix.size; row++) {
     for (let col = 0; col < matrix.size; col++) {
       if (!matrix.get(row, col)) continue;
       if (isInEye(row, col, matrix.size)) continue;
       if (hasLogo && isInLogoZone(row, col, matrix.size, logoFraction, logoPadModules)) continue;
-      const cx = qrX0 + quiet + col + 0.5;
-      const cy = qrY0 + quiet + row + 0.5;
-      dotPaths.push(
-        `M${cx - dotR} ${cy}a${dotR} ${dotR} 0 1 0 ${2 * dotR} 0a${dotR} ${dotR} 0 1 0 ${-2 * dotR} 0`,
-      );
+      dotFragments.push(renderModule(qrX0 + quiet + col, qrY0 + quiet + row));
     }
   }
+  const dotsSvg = `<g fill="${fg}">${dotFragments.join("")}</g>`;
 
-  // ─ Finder eyes (Instagram-style rounded squares + solid inner circle) ─
+  // ─ Finder eyes — shape honors cornerSquareStyle / cornerDotStyle ─
   const eyePositions: Array<[number, number]> = [
     [qrX0 + quiet, qrY0 + quiet],
     [qrX0 + quiet + matrix.size - 7, qrY0 + quiet],
     [qrX0 + quiet, qrY0 + quiet + matrix.size - 7],
   ];
-  const outerRx = 2;
-  const middleRx = 1.4;
-  const innerR = 1.5; // radius of solid inner circle (in modules)
-  const eyes = eyePositions
-    .map(([x, y]) => {
-      const cx = x + 3.5;
-      const cy = y + 3.5;
-      return [
-        `<rect x="${x}" y="${y}" width="7" height="7" rx="${outerRx}" ry="${outerRx}" fill="${eyeColor}"/>`,
-        `<rect x="${x + 1}" y="${y + 1}" width="5" height="5" rx="${middleRx}" ry="${middleRx}" fill="${bg}"/>`,
-        `<circle cx="${cx}" cy="${cy}" r="${innerR}" fill="${eyeDotColor}"/>`,
-      ].join("");
-    })
-    .join("");
+
+  const renderEye = (x: number, y: number): string => {
+    const cx = x + 3.5;
+    const cy = y + 3.5;
+    // Outer ring (7×7) with hole (5×5 bg)
+    let outer = "";
+    switch (style.cornerSquareStyle) {
+      case "dot":
+        outer =
+          `<circle cx="${cx}" cy="${cy}" r="3.5" fill="${eyeColor}"/>` +
+          `<circle cx="${cx}" cy="${cy}" r="2.5" fill="${bg}"/>`;
+        break;
+      case "extra-rounded":
+        outer =
+          `<rect x="${x}" y="${y}" width="7" height="7" rx="2" ry="2" fill="${eyeColor}"/>` +
+          `<rect x="${x + 1}" y="${y + 1}" width="5" height="5" rx="1.4" ry="1.4" fill="${bg}"/>`;
+        break;
+      case "classy-rounded":
+      case "classy": {
+        // Asymmetric outer: top-left + bottom-right rounded
+        const r = 2;
+        outer =
+          `<path d="M${x + r} ${y} H${x + 7} V${y + 7 - r} A${r} ${r} 0 0 1 ${x + 7 - r} ${y + 7} H${x} V${y + r} A${r} ${r} 0 0 1 ${x + r} ${y} Z" fill="${eyeColor}"/>` +
+          `<rect x="${x + 1}" y="${y + 1}" width="5" height="5" rx="0.8" ry="0.8" fill="${bg}"/>`;
+        break;
+      }
+      case "square":
+      default:
+        outer =
+          `<rect x="${x}" y="${y}" width="7" height="7" fill="${eyeColor}"/>` +
+          `<rect x="${x + 1}" y="${y + 1}" width="5" height="5" fill="${bg}"/>`;
+    }
+    // Inner dot (3×3)
+    let inner = "";
+    switch (style.cornerDotStyle) {
+      case "square":
+        inner = `<rect x="${x + 2}" y="${y + 2}" width="3" height="3" fill="${eyeDotColor}"/>`;
+        break;
+      case "dot":
+      default:
+        inner = `<circle cx="${cx}" cy="${cy}" r="1.5" fill="${eyeDotColor}"/>`;
+    }
+    return outer + inner;
+  };
+
+  const eyes = eyePositions.map(([x, y]) => renderEye(x, y)).join("");
 
   // ─ 4 outer corner targets (minimal concentric bullseye) ─
   let targets = "";
