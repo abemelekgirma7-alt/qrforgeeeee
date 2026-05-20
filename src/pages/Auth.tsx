@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Apple, ArrowLeft, Loader2, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { useAuth } from "@/hooks/useAuth";
+import { AuthLoadingScreen } from "@/components/auth/AuthLoadingScreen";
 
 type AuthMode = "signin" | "signup";
 
@@ -16,13 +17,15 @@ const LAST_EMAIL_KEY = "qrforge.lastAccountEmail";
 
 export default function Auth() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, loading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
-  const [mode, setMode] = useState<AuthMode>("signin");
+  const [mode, setMode] = useState<AuthMode>("signup");
   const [lastEmail, setLastEmail] = useState<string | null>(null);
+  const redirectTo = new URLSearchParams(location.search).get("redirect") || "/dashboard";
 
   useEffect(() => {
     try {
@@ -34,21 +37,23 @@ export default function Auth() {
   }, []);
 
   useEffect(() => {
-    if (!authLoading && user) navigate("/dashboard", { replace: true });
-  }, [user, authLoading, navigate]);
+    if (!authLoading && user) navigate(redirectTo, { replace: true });
+  }, [user, authLoading, navigate, redirectTo]);
 
   const handleOAuth = async (provider: "google" | "apple") => {
     setBusy(true);
     const result = await lovable.auth.signInWithOAuth(provider, {
-      redirect_uri: `${window.location.origin}/dashboard`,
+      redirect_uri: `${window.location.origin}${redirectTo}`,
+      extraParams: provider === "google" ? { prompt: "select_account" } : undefined,
     });
     if (result.error) {
-      toast.error(`Couldn't sign in with ${provider}`);
+      toast.error(result.error.message || `Couldn't continue with ${provider}. Try again.`);
       setBusy(false);
       return;
     }
     if (result.redirected) return;
-    navigate("/dashboard", { replace: true });
+    setBusy(false);
+    navigate(redirectTo, { replace: true });
   };
 
   const rememberEmail = (value: string) => {
@@ -62,12 +67,12 @@ export default function Auth() {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     setBusy(false);
     if (error) {
       const msg = error.message.toLowerCase();
       if (msg.includes("invalid login") || msg.includes("invalid credentials")) {
-        return toast.error("No account found with that email and password. Try signing up instead.");
+        return toast.error("Wrong email or password. If this is a new account, create it with Sign up first.");
       }
       if (msg.includes("email not confirmed")) {
         return toast.error("Please confirm your email address before signing in — check your inbox.");
@@ -76,7 +81,7 @@ export default function Auth() {
     }
     rememberEmail(email);
     toast.success("Welcome back!");
-    navigate("/dashboard", { replace: true });
+    navigate(redirectTo, { replace: true });
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -89,11 +94,11 @@ export default function Auth() {
     }
     setBusy(true);
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: email.trim(),
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/dashboard`,
-        data: { full_name: name },
+        emailRedirectTo: `${window.location.origin}${redirectTo}`,
+        data: { full_name: name.trim(), name: name.trim() },
       },
     });
     if (error) {
@@ -102,8 +107,9 @@ export default function Auth() {
       if (message.includes("already registered") || message.includes("already been registered") || message.includes("user already registered") || message.includes("already exists")) {
         setMode("signin");
         rememberEmail(email);
-        return toast.error("You already have an account. Please sign in instead.");
+        return toast.error("That email already has an account. Please sign in instead.");
       }
+      if (message.includes("invalid email")) return toast.error("Enter a valid email address.");
       if (message.includes("password") && (message.includes("weak") || message.includes("short") || message.includes("6"))) {
         return toast.error("Password is too weak. Use at least 6 characters with a mix of letters and numbers.");
       }
@@ -112,10 +118,16 @@ export default function Auth() {
       }
       return toast.error(error.message);
     }
+    if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      setBusy(false);
+      setMode("signin");
+      rememberEmail(email);
+      return toast.error("That email already has an account. Please sign in instead.");
+    }
     rememberEmail(email);
     // If email confirmation is required, no session is returned. Try signing in directly.
     if (!data.session) {
-      const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
+      const { error: signInErr } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (signInErr) {
         setBusy(false);
         toast.success("Account created! Please check your email to confirm your address before signing in.");
@@ -129,7 +141,7 @@ export default function Auth() {
       const uid = sess.session?.user.id;
       if (uid) {
         await supabase.from("profiles").upsert(
-          { id: uid, display_name: name },
+          { id: uid, display_name: name.trim() },
           { onConflict: "id", ignoreDuplicates: true },
         );
       }
@@ -138,7 +150,7 @@ export default function Auth() {
     }
     setBusy(false);
     toast.success(`Welcome, ${name.split(" ")[0] || "there"}!`);
-    navigate("/dashboard", { replace: true });
+    navigate(redirectTo, { replace: true });
   };
 
   const useLastAccount = () => {
@@ -146,6 +158,8 @@ export default function Auth() {
     setEmail(lastEmail);
     setMode("signin");
   };
+
+  if (authLoading) return <AuthLoadingScreen />;
 
   return (
     <div className="min-h-screen bg-gradient-soft">
@@ -163,7 +177,7 @@ export default function Auth() {
           <div className="text-center">
             <h1 className="text-2xl font-bold tracking-tight">Welcome to QR Forge</h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Sign in to save your QR codes and access your dashboard.
+              Create an account to save your QR codes and access your dashboard.
             </p>
           </div>
 
@@ -215,8 +229,8 @@ export default function Auth() {
 
           <Tabs value={mode} onValueChange={(value) => setMode(value as AuthMode)}>
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">Sign in</TabsTrigger>
               <TabsTrigger value="signup">Sign up</TabsTrigger>
+              <TabsTrigger value="signin">Sign in</TabsTrigger>
             </TabsList>
 
             <TabsContent value="signin">

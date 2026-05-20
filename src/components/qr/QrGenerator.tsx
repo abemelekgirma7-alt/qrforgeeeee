@@ -154,6 +154,7 @@ export function QrGenerator({
   const [colorsOpen, setColorsOpen] = useState(false);
   const [patternOpen, setPatternOpen] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const previewTestMode = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("qrPreviewTest");
   const generateBtnRef = useRef<HTMLButtonElement>(null);
 
   // React to template clicks elsewhere on the page
@@ -461,9 +462,10 @@ export function QrGenerator({
         <h3 className="mb-3 text-center text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Live preview
         </h3>
-        <div className="mx-auto w-full max-w-[200px] sm:max-w-[260px] lg:max-w-[320px] aspect-square rounded-2xl bg-white p-2 sm:p-3 shadow-elev-md flex items-center justify-center">
-          <QrPreview data={payload} style={style} frame={false} />
+        <div data-qr-preview-box className="mx-auto flex aspect-square w-full max-w-[min(100%,200px)] items-center justify-center overflow-hidden rounded-2xl bg-white p-2 shadow-elev-md sm:max-w-[260px] sm:p-3 lg:max-w-[320px]">
+          <QrPreview data={payload} style={style} frame={false} className="h-full w-full" />
         </div>
+        {previewTestMode && <QrPreviewContainmentCheck />}
         {styleWarning && (
           <p className="mx-auto mt-3 max-w-[260px] rounded-lg border border-amber-300/40 bg-amber-50 px-2.5 py-1.5 text-center text-[11px] font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
             ⚠ {styleWarning}
@@ -475,6 +477,29 @@ export function QrGenerator({
         </p>
       </div>
     </div>
+  );
+}
+
+function QrPreviewContainmentCheck() {
+  const [ok, setOk] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const box = document.querySelector<HTMLElement>("[data-qr-preview-box]");
+    if (!box) return;
+    const check = () => {
+      const qr = box.querySelector<HTMLElement>("[role='img']");
+      setOk(Boolean(qr && qr.scrollWidth <= box.clientWidth && qr.scrollHeight <= box.clientHeight));
+    };
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(box);
+    return () => ro.disconnect();
+  }, []);
+
+  return (
+    <p className="mx-auto mt-3 max-w-[260px] rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-1.5 text-center text-[11px] font-medium text-primary">
+      Responsive preview test: {ok === null ? "checking…" : ok ? "contained at this width" : "overflow detected"}
+    </p>
   );
 }
 

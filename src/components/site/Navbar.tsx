@@ -28,7 +28,6 @@ import {
   SheetTrigger,
   SheetClose,
 } from "@/components/ui/sheet";
-import { supabase } from "@/integrations/supabase/client";
 
 function QrMark({ className }: { className?: string }) {
   return (
@@ -54,7 +53,7 @@ function QrMark({ className }: { className?: string }) {
 }
 
 export function Navbar({ blogLinkLabel = "Blog" }: { blogLinkLabel?: string }) {
-  const { user } = useAuth();
+  const { user, loading, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -143,7 +142,9 @@ export function Navbar({ blogLinkLabel = "Blog" }: { blogLinkLabel?: string }) {
 
       {/* Right actions */}
       <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
-        {user ? (
+        {loading ? (
+          <span className="inline-flex h-8 w-20 rounded-full border bg-card sm:h-9" aria-label="Checking account" />
+        ) : user ? (
           <Link
             to="/dashboard"
             className="inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-[11px] font-semibold text-primary-foreground shadow-elev-sm hover:bg-primary-hover sm:px-3 sm:py-1.5 sm:text-xs md:px-3.5 md:text-sm"
@@ -243,10 +244,12 @@ export function Navbar({ blogLinkLabel = "Blog" }: { blogLinkLabel?: string }) {
                   <Link to="/dashboard"><User className="mr-2 h-4 w-4" />Account</Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => supabase.auth.signOut()}>
+                <DropdownMenuItem onClick={() => signOut()}>
                   <LogOut className="mr-2 h-4 w-4" />Sign out
                 </DropdownMenuItem>
               </>
+            ) : loading ? (
+              <DropdownMenuItem disabled>Checking account…</DropdownMenuItem>
             ) : (
               <DropdownMenuItem asChild>
                 <Link to="/auth"><LogIn className="mr-2 h-4 w-4" />Sign in</Link>

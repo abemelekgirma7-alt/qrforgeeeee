@@ -17,37 +17,32 @@ export type Database = {
       abuse_reports: {
         Row: {
           created_at: string
+          details: string | null
           id: string
-          qr_id: string | null
           reason: string
           reporter_email: string | null
+          short_code: string
           status: string
         }
         Insert: {
           created_at?: string
+          details?: string | null
           id?: string
-          qr_id?: string | null
           reason: string
           reporter_email?: string | null
+          short_code: string
           status?: string
         }
         Update: {
           created_at?: string
+          details?: string | null
           id?: string
-          qr_id?: string | null
           reason?: string
           reporter_email?: string | null
+          short_code?: string
           status?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "abuse_reports_qr_id_fkey"
-            columns: ["qr_id"]
-            isOneToOne: false
-            referencedRelation: "dynamic_qrs"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       api_keys: {
         Row: {
@@ -87,24 +82,21 @@ export type Database = {
       }
       blocked_urls: {
         Row: {
-          added_by: string | null
           created_at: string
+          domain: string
           id: string
-          pattern: string
           reason: string | null
         }
         Insert: {
-          added_by?: string | null
           created_at?: string
+          domain: string
           id?: string
-          pattern: string
           reason?: string | null
         }
         Update: {
-          added_by?: string | null
           created_at?: string
+          domain?: string
           id?: string
-          pattern?: string
           reason?: string | null
         }
         Relationships: []
@@ -112,37 +104,37 @@ export type Database = {
       bulk_jobs: {
         Row: {
           created_at: string
-          error: string | null
+          created_count: number
+          failed_count: number
           id: string
           name: string
-          processed: number
-          result_url: string | null
+          qr_type: string
+          rows: Json
           status: string
-          total: number
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
-          error?: string | null
+          created_count?: number
+          failed_count?: number
           id?: string
-          name?: string
-          processed?: number
-          result_url?: string | null
+          name: string
+          qr_type?: string
+          rows?: Json
           status?: string
-          total?: number
           updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
-          error?: string | null
+          created_count?: number
+          failed_count?: number
           id?: string
           name?: string
-          processed?: number
-          result_url?: string | null
+          qr_type?: string
+          rows?: Json
           status?: string
-          total?: number
           updated_at?: string
           user_id?: string
         }
@@ -297,7 +289,6 @@ export type Database = {
           rating: number
           review_text: string
           role: string | null
-          user_id: string | null
         }
         Insert: {
           approved?: boolean
@@ -305,10 +296,9 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
-          rating: number
+          rating?: number
           review_text: string
           role?: string | null
-          user_id?: string | null
         }
         Update: {
           approved?: boolean
@@ -319,7 +309,6 @@ export type Database = {
           rating?: number
           review_text?: string
           role?: string | null
-          user_id?: string | null
         }
         Relationships: []
       }
@@ -423,25 +412,22 @@ export type Database = {
       }
       team_members: {
         Row: {
+          created_at: string
           id: string
-          invited_email: string | null
-          joined_at: string
           role: Database["public"]["Enums"]["team_role"]
           team_id: string
           user_id: string
         }
         Insert: {
+          created_at?: string
           id?: string
-          invited_email?: string | null
-          joined_at?: string
           role?: Database["public"]["Enums"]["team_role"]
           team_id: string
           user_id: string
         }
         Update: {
+          created_at?: string
           id?: string
-          invited_email?: string | null
-          joined_at?: string
           role?: Database["public"]["Enums"]["team_role"]
           team_id?: string
           user_id?: string
@@ -479,34 +465,37 @@ export type Database = {
       }
       templates: {
         Row: {
-          config: Json
           created_at: string
           id: string
           is_public: boolean
+          logo_data_url: string | null
           name: string
+          payload: string
           qr_type: string
-          updated_at: string
-          user_id: string
+          style: Json
+          user_id: string | null
         }
         Insert: {
-          config?: Json
           created_at?: string
           id?: string
           is_public?: boolean
+          logo_data_url?: string | null
           name: string
+          payload: string
           qr_type?: string
-          updated_at?: string
-          user_id: string
+          style?: Json
+          user_id?: string | null
         }
         Update: {
-          config?: Json
           created_at?: string
           id?: string
           is_public?: boolean
+          logo_data_url?: string | null
           name?: string
+          payload?: string
           qr_type?: string
-          updated_at?: string
-          user_id?: string
+          style?: Json
+          user_id?: string | null
         }
         Relationships: []
       }

@@ -17,6 +17,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { Navbar } from "@/components/site/Navbar";
+import { AuthLoadingScreen } from "@/components/auth/AuthLoadingScreen";
 import { Footer } from "@/components/site/Footer";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -222,11 +223,7 @@ export default function Scanner() {
 
   /* ── Auth gate ── */
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <AuthLoadingScreen message="Preparing the scanner…" />;
   }
   if (!user) {
     return <Navigate to={`/auth?redirect=${encodeURIComponent("/scanner")}`} replace />;
