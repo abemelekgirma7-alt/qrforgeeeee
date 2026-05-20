@@ -164,12 +164,15 @@ export default function Scanner() {
   }, [tab]);
 
   /* ── Upload scan ── */
-  const onPickFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
+  const decodeFile = async (f: File) => {
+    if (!f.type.startsWith("image/")) {
+      setError("Please choose an image file (PNG, JPG, WebP, or SVG).");
+      return;
+    }
     setError(null);
     setResult(null);
     setUploadBusy(true);
+    if (uploadPreview) URL.revokeObjectURL(uploadPreview);
     const url = URL.createObjectURL(f);
     setUploadPreview(url);
     try {
@@ -181,6 +184,18 @@ export default function Scanner() {
     } finally {
       setUploadBusy(false);
     }
+  };
+
+  const onPickFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) await decodeFile(f);
+  };
+
+  const handleDrop = async (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    setDragOver(false);
+    const f = e.dataTransfer.files?.[0];
+    if (f) await decodeFile(f);
   };
 
   const reset = () => {
