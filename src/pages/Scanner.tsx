@@ -54,6 +54,7 @@ export default function Scanner() {
   const timeoutRef = useRef<number | null>(null);
   const [uploadPreview, setUploadPreview] = useState<string | null>(null);
   const [uploadBusy, setUploadBusy] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
 
   useEffect(() => {
     document.title = "QR Scanner — QR Forge";
