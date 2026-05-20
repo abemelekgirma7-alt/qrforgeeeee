@@ -72,8 +72,11 @@ export default function Auth() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!name.trim()) {
+      return toast.error("Please enter your name.");
+    }
     setBusy(true);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -81,8 +84,8 @@ export default function Auth() {
         data: { full_name: name },
       },
     });
-    setBusy(false);
     if (error) {
+      setBusy(false);
       const message = error.message.toLowerCase();
       if (message.includes("already registered") || message.includes("already been registered") || message.includes("user already registered")) {
         setMode("signin");
@@ -92,7 +95,21 @@ export default function Auth() {
       return toast.error(error.message);
     }
     rememberEmail(email);
-    toast.success("Account created!");
+    // If email confirmation is required, no session is returned. Try signing
+    // in directly — works whenever confirmation is disabled at the project
+    // level and gives a clear message otherwise.
+    if (!data.session) {
+      const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
+      setBusy(false);
+      if (signInErr) {
+        toast.success("Account created! Please check your email to confirm your address before signing in.");
+        setMode("signin");
+        return;
+      }
+    } else {
+      setBusy(false);
+    }
+    toast.success(`Welcome, ${name.split(" ")[0] || "there"}!`);
     navigate("/dashboard", { replace: true });
   };
 
