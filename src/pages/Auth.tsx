@@ -64,7 +64,16 @@ export default function Auth() {
     setBusy(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setBusy(false);
-    if (error) return toast.error(error.message);
+    if (error) {
+      const msg = error.message.toLowerCase();
+      if (msg.includes("invalid login") || msg.includes("invalid credentials")) {
+        return toast.error("No account found with that email and password. Try signing up instead.");
+      }
+      if (msg.includes("email not confirmed")) {
+        return toast.error("Please confirm your email address before signing in — check your inbox.");
+      }
+      return toast.error(error.message);
+    }
     rememberEmail(email);
     toast.success("Welcome back!");
     navigate("/dashboard", { replace: true });
