@@ -520,16 +520,41 @@ export function BulkGenerator() {
           </CollapsibleContent>
         </Collapsible>
 
-        {/* ── GENERATE BUTTON ── */}
-        <Button
-          onClick={doGenerate}
-          size="lg"
-          className="w-full bg-gradient-hero text-primary-foreground hover:opacity-95"
-          disabled={!rows.length}
-        >
-          <Sparkles className="mr-2 h-4 w-4" />
-          Generate {rows.length} QR code{rows.length !== 1 ? "s" : ""}
-        </Button>
+        {/* ── GENERATE + RESET ── */}
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button
+            onClick={doGenerate}
+            size="lg"
+            className="flex-1 bg-gradient-hero text-primary-foreground hover:opacity-95"
+            disabled={!rows.length}
+          >
+            <Sparkles className="mr-2 h-4 w-4" />
+            Generate {rows.length} QR code{rows.length !== 1 ? "s" : ""}
+          </Button>
+          <Button
+            size="lg"
+            variant="outline"
+            type="button"
+            className="sm:w-auto"
+            onClick={() => {
+              setInput("");
+              setRows([]);
+              setLogoUrl(null);
+              setPlacement("center");
+              setBlendMode("multiply");
+              setLogoOpacity(DEFAULT_LOGO_OPACITY);
+              setLogoScale(0.8);
+              setBulkStyle(defaultStyle);
+              setActiveIdx(0);
+              setGenerated(false);
+              setColorsOpen(false);
+              setPatternOpen(false);
+              if (fileRef.current) fileRef.current.value = "";
+            }}
+          >
+            Reset
+          </Button>
+        </div>
 
         {/* ── DOWNLOAD ── */}
         {generated && (
