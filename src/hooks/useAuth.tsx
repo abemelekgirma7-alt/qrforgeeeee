@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -19,6 +19,7 @@ const Ctx = createContext<AuthCtx>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const restoredRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -26,6 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const restore = async () => {
       const { data } = await supabase.auth.getSession();
       if (!mounted) return;
+      restoredRef.current = true;
       setSession(data.session);
       setLoading(false);
     };
@@ -34,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
-      setLoading(false);
+      if (restoredRef.current) setLoading(false);
     });
 
     return () => {
