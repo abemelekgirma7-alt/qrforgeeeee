@@ -118,6 +118,12 @@ export default function Auth() {
       }
       return toast.error(error.message);
     }
+    if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      setBusy(false);
+      setMode("signin");
+      rememberEmail(email);
+      return toast.error("That email already has an account. Please sign in instead.");
+    }
     rememberEmail(email);
     // If email confirmation is required, no session is returned. Try signing in directly.
     if (!data.session) {
