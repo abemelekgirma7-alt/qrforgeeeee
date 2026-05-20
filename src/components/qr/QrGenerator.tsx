@@ -400,22 +400,39 @@ export function QrGenerator({
           </CollapsibleContent>
         </Collapsible>
 
-        <Button
-          size="lg"
-          ref={generateBtnRef}
-          className="mt-8 w-full bg-gradient-hero text-primary-foreground hover:opacity-95"
-          onClick={() => {
-            if (formError) {
-              setSubmitError(formError);
-              return;
-            }
-            setSubmitError(null);
-            onGenerate({ form, style, payload });
-          }}
-        >
-          Generate QR code
-          <Sparkles className="ml-2 h-4 w-4" />
-        </Button>
+        <div className="mt-8 flex flex-col gap-2 sm:flex-row">
+          <Button
+            size="lg"
+            ref={generateBtnRef}
+            className="flex-1 bg-gradient-hero text-primary-foreground hover:opacity-95"
+            onClick={() => {
+              if (formError) {
+                setSubmitError(formError);
+                return;
+              }
+              setSubmitError(null);
+              onGenerate({ form, style, payload });
+            }}
+          >
+            Generate QR code
+            <Sparkles className="ml-2 h-4 w-4" />
+          </Button>
+          <Button
+            size="lg"
+            variant="outline"
+            type="button"
+            className="sm:w-auto"
+            onClick={() => {
+              setForm({ ...defaultForm, type: initialType ?? defaultForm.type });
+              setStyle(defaultStyle);
+              setSubmitError(null);
+              setColorsOpen(false);
+              setPatternOpen(false);
+            }}
+          >
+            Reset
+          </Button>
+        </div>
       </div>
 
       {/* LIVE PREVIEW — sticky on the right, premium scan card */}
