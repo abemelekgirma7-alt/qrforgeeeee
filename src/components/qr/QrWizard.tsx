@@ -307,21 +307,23 @@ export function QrWizard({
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_400px] grid-cols-1">
         {/* PREVIEW — premium scan card (built-in corner targets + [SCAN ME]) */}
-        <div className="surface-card relative flex items-center justify-center p-4 sm:p-6 md:p-10">
-          <div className="relative w-full max-w-[340px] rounded-2xl bg-white p-3 shadow-elev-md">
+        <div className="surface-card relative flex items-center justify-center overflow-hidden p-3 sm:p-6 md:p-10 min-w-0">
+          <div className="relative mx-auto w-full max-w-[min(100%,340px)] rounded-2xl bg-white p-2 sm:p-3 shadow-elev-md overflow-hidden">
             {logoUrl && placement === "top" && (
               <div className="mb-2 sm:mb-3 flex justify-center">
                 <img src={logoUrl} alt="" className="max-h-16 w-auto object-contain" />
               </div>
             )}
-            <QrPreview
-              data={data}
-              style={{
-                ...style,
-                logoDataUrl: logoUrl && placement === "center" ? logoUrl : null,
-              }}
-              size={316}
-            />
+            <div className="w-full aspect-square">
+              <QrPreview
+                data={data}
+                style={{
+                  ...style,
+                  logoDataUrl: logoUrl && placement === "center" ? logoUrl : null,
+                }}
+                className="w-full h-full"
+              />
+            </div>
             {logoUrl && placement === "below" && (
               <div className="mt-2 sm:mt-3 flex justify-center">
                 <img src={logoUrl} alt="" className="max-h-16 w-auto object-contain" />

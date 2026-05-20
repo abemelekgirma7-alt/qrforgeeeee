@@ -84,6 +84,9 @@ export default function Auth() {
     if (!name.trim()) {
       return toast.error("Please enter your name.");
     }
+    if (password.length < 6) {
+      return toast.error("Password must be at least 6 characters.");
+    }
     setBusy(true);
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -96,28 +99,44 @@ export default function Auth() {
     if (error) {
       setBusy(false);
       const message = error.message.toLowerCase();
-      if (message.includes("already registered") || message.includes("already been registered") || message.includes("user already registered")) {
+      if (message.includes("already registered") || message.includes("already been registered") || message.includes("user already registered") || message.includes("already exists")) {
         setMode("signin");
         rememberEmail(email);
         return toast.error("You already have an account. Please sign in instead.");
       }
+      if (message.includes("password") && (message.includes("weak") || message.includes("short") || message.includes("6"))) {
+        return toast.error("Password is too weak. Use at least 6 characters with a mix of letters and numbers.");
+      }
+      if (message.includes("network") || message.includes("fetch")) {
+        return toast.error("Network error. Check your connection and try again.");
+      }
       return toast.error(error.message);
     }
     rememberEmail(email);
-    // If email confirmation is required, no session is returned. Try signing
-    // in directly — works whenever confirmation is disabled at the project
-    // level and gives a clear message otherwise.
+    // If email confirmation is required, no session is returned. Try signing in directly.
     if (!data.session) {
       const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
-      setBusy(false);
       if (signInErr) {
+        setBusy(false);
         toast.success("Account created! Please check your email to confirm your address before signing in.");
         setMode("signin");
         return;
       }
-    } else {
-      setBusy(false);
     }
+    // Safety-net: ensure a profile row exists even if the DB trigger ever fails silently.
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const uid = sess.session?.user.id;
+      if (uid) {
+        await supabase.from("profiles").upsert(
+          { id: uid, display_name: name },
+          { onConflict: "id", ignoreDuplicates: true },
+        );
+      }
+    } catch (err) {
+      console.error("[Auth] profile upsert fallback failed", err);
+    }
+    setBusy(false);
     toast.success(`Welcome, ${name.split(" ")[0] || "there"}!`);
     navigate("/dashboard", { replace: true });
   };
