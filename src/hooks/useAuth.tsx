@@ -16,6 +16,35 @@ const Ctx = createContext<AuthCtx>({
   signOut: async () => {},
 });
 
+const ensureProfile = async (user: User | null) => {
+  if (!user) return;
+
+  const displayName =
+    typeof user.user_metadata?.full_name === "string"
+      ? user.user_metadata.full_name
+      : typeof user.user_metadata?.name === "string"
+        ? user.user_metadata.name
+        : null;
+
+  const avatarUrl =
+    typeof user.user_metadata?.avatar_url === "string"
+      ? user.user_metadata.avatar_url
+      : typeof user.user_metadata?.picture === "string"
+        ? user.user_metadata.picture
+        : null;
+
+  const { error } = await supabase.from("profiles").upsert(
+    {
+      id: user.id,
+      display_name: displayName,
+      avatar_url: avatarUrl,
+    },
+    { onConflict: "id", ignoreDuplicates: true },
+  );
+
+  if (error) console.error("[Auth] Supabase profile sync failed", error);
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -29,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!mounted) return;
       restoredRef.current = true;
       setSession(data.session);
+      void ensureProfile(data.session?.user ?? null);
       setLoading(false);
     };
 
@@ -36,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
+      void ensureProfile(nextSession?.user ?? null);
       if (restoredRef.current) setLoading(false);
     });
 
