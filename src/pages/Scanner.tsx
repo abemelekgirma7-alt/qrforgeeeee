@@ -313,8 +313,18 @@ export default function Scanner() {
 
             {/* ── UPLOAD ── */}
             <TabsContent value="upload" className="mt-4">
-              <div className="mx-auto w-full max-w-md">
-                <label className="relative block cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed border-border bg-secondary/40 p-6 text-center transition-colors hover:border-primary hover:bg-primary/5">
+              <div className="mx-auto w-full max-w-md space-y-3">
+                <label
+                  onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={handleDrop}
+                  className={cn(
+                    "relative block cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed p-6 text-center transition-colors",
+                    dragOver
+                      ? "border-primary bg-primary/10"
+                      : "border-border bg-secondary/40 hover:border-primary hover:bg-primary/5",
+                  )}
+                >
                   {uploadPreview ? (
                     <div className="relative">
                       <img
@@ -332,8 +342,10 @@ export default function Scanner() {
                   ) : (
                     <div className="flex flex-col items-center gap-2 py-6">
                       <ImageIcon className="h-10 w-10 text-muted-foreground" />
-                      <p className="text-sm font-medium">Click or drop an image with a QR code</p>
-                      <p className="text-xs text-muted-foreground">PNG · JPG · WebP · SVG</p>
+                      <p className="text-sm font-medium">
+                        {dragOver ? "Drop the image to scan" : "Drag & drop a QR image here"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">or use the button below — PNG · JPG · WebP · SVG</p>
                     </div>
                   )}
                   <input
@@ -344,14 +356,27 @@ export default function Scanner() {
                     onChange={onPickFile}
                   />
                 </label>
-                {uploadBusy && (
-                  <p className="mt-3 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                    <Loader2 className="h-3 w-3 animate-spin" /> Decoding…
-                  </p>
+                <Button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  disabled={uploadBusy}
+                  className="w-full bg-gradient-hero text-primary-foreground"
+                >
+                  {uploadBusy ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Decoding…</>
+                  ) : (
+                    <><Upload className="mr-2 h-4 w-4" /> Upload image & scan</>
+                  )}
+                </Button>
+                {uploadPreview && !uploadBusy && (
+                  <Button type="button" variant="outline" className="w-full" onClick={reset}>
+                    <RefreshCcw className="mr-2 h-4 w-4" /> Choose a different image
+                  </Button>
                 )}
               </div>
             </TabsContent>
           </Tabs>
+
 
           {/* ── RESULT ── */}
           {(result || error) && (
