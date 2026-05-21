@@ -1,18 +1,91 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Apple, ArrowLeft, Loader2, Mail } from "lucide-react";
+import { AlertCircle, Apple, ArrowLeft, CheckCircle2, Loader2, Mail, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AuthLoadingScreen } from "@/components/auth/AuthLoadingScreen";
 
 type AuthMode = "signin" | "signup";
+type OAuthProvider = "google" | "apple";
+type ProviderCheck = {
+  checking: boolean;
+  enabled: boolean | null;
+  message?: string;
+};
 
 const LAST_EMAIL_KEY = "qrforge.lastAccountEmail";
+const SUPABASE_AUTH_URL = `${import.meta.env.VITE_SUPABASE_URL}/auth/v1`;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+const providerLabels: Record<OAuthProvider, string> = {
+  google: "Google",
+  apple: "Apple",
+};
+
+const defaultProviderChecks: Record<OAuthProvider, ProviderCheck> = {
+  google: { checking: true, enabled: null },
+  apple: { checking: true, enabled: null },
+};
+
+function oauthSetupMessage(provider: OAuthProvider, rawMessage?: string) {
+  const label = providerLabels[provider];
+  const message = rawMessage?.toLowerCase() ?? "";
+
+  if (message.includes("missing oauth secret")) {
+    return `${label} sign-in is enabled but missing its OAuth client secret. Open Backend → Users → Authentication Settings → Sign In Methods → ${label}, then add the Client ID and Client Secret or enable the managed provider.`;
+  }
+
+  if (message.includes("unsupported provider")) {
+    return `${label} sign-in is not fully enabled. Open Backend → Users → Authentication Settings → Sign In Methods → ${label}, enable it, and save the provider credentials.`;
+  }
+
+  return `${label} sign-in could not be verified. Open Backend → Users → Authentication Settings → Sign In Methods and confirm the provider is enabled with a valid Client ID and Client Secret.`;
+}
+
+async function verifyOAuthProvider(provider: OAuthProvider, redirectTo: string): Promise<ProviderCheck> {
+  if (!SUPABASE_AUTH_URL || !SUPABASE_ANON_KEY) {
+    return {
+      checking: false,
+      enabled: false,
+      message: "Supabase environment variables are missing. Reconnect the backend before using social sign-in.",
+    };
+  }
+
+  try {
+    const settingsResponse = await fetch(`${SUPABASE_AUTH_URL}/settings`, {
+      headers: { apikey: SUPABASE_ANON_KEY },
+    });
+    const settings = await settingsResponse.json().catch(() => null) as { external?: Record<string, boolean> } | null;
+    if (settings?.external?.[provider] === false) {
+      return { checking: false, enabled: false, message: oauthSetupMessage(provider, "unsupported provider") };
+    }
+
+    const authorizeUrl = new URL(`${SUPABASE_AUTH_URL}/authorize`);
+    authorizeUrl.searchParams.set("provider", provider);
+    authorizeUrl.searchParams.set("redirect_to", `${window.location.origin}${redirectTo}`);
+
+    const response = await fetch(authorizeUrl.toString(), {
+      headers: { apikey: SUPABASE_ANON_KEY },
+      redirect: "manual",
+    });
+
+    if (response.status === 400) {
+      const payload = await response.json().catch(() => null) as { msg?: string; error?: string; error_code?: string } | null;
+      const rawMessage = payload?.msg || payload?.error || payload?.error_code;
+      return { checking: false, enabled: false, message: oauthSetupMessage(provider, rawMessage) };
+    }
+
+    return { checking: false, enabled: true };
+  } catch {
+    return { checking: false, enabled: null, message: `Couldn't verify ${providerLabels[provider]} sign-in setup. Try again, or check the provider settings in Backend → Users → Authentication Settings.` };
+  }
+}
 
 export default function Auth() {
   const navigate = useNavigate();
