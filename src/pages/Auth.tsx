@@ -304,12 +304,14 @@ export default function Auth() {
             </div>
           )}
 
+          <OAuthSetupCheck checks={providerChecks} onRefresh={refreshOAuthChecks} />
+
           <div className="mt-6 grid gap-2">
             <Button
               variant="outline"
               type="button"
               onClick={() => handleOAuth("google")}
-              disabled={busy}
+              disabled={busy || providerChecks.google.enabled === false}
               className="h-11"
             >
               <GoogleIcon className="mr-2 h-4 w-4" /> Continue with Google
@@ -318,7 +320,7 @@ export default function Auth() {
               variant="outline"
               type="button"
               onClick={() => handleOAuth("apple")}
-              disabled={busy}
+              disabled={busy || providerChecks.apple.enabled === false}
               className="h-11"
             >
               <Apple className="mr-2 h-4 w-4" /> Continue with Apple
@@ -408,6 +410,50 @@ export default function Auth() {
         </div>
       </div>
     </div>
+  );
+}
+
+function OAuthSetupCheck({
+  checks,
+  onRefresh,
+}: {
+  checks: Record<OAuthProvider, ProviderCheck>;
+  onRefresh: () => void;
+}) {
+  const failedProviders = (Object.keys(checks) as OAuthProvider[]).filter((provider) => checks[provider].enabled === false);
+  const checking = (Object.keys(checks) as OAuthProvider[]).some((provider) => checks[provider].checking);
+
+  if (checking) {
+    return (
+      <div className="mt-5 flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking Google and Apple OAuth setup…
+      </div>
+    );
+  }
+
+  if (failedProviders.length === 0) {
+    return (
+      <div className="mt-5 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+        <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Google and Apple OAuth providers are enabled.
+      </div>
+    );
+  }
+
+  return (
+    <Alert variant="destructive" className="mt-5">
+      <AlertCircle className="h-4 w-4" />
+      <AlertTitle>OAuth provider setup needs attention</AlertTitle>
+      <AlertDescription className="space-y-3">
+        <ul className="list-disc space-y-2 pl-4">
+          {failedProviders.map((provider) => (
+            <li key={provider}>{checks[provider].message}</li>
+          ))}
+        </ul>
+        <Button type="button" variant="outline" size="sm" onClick={onRefresh} className="h-8">
+          <RefreshCw className="mr-2 h-3.5 w-3.5" /> Recheck setup
+        </Button>
+      </AlertDescription>
+    </Alert>
   );
 }
 
