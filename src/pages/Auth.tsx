@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AlertCircle, Apple, ArrowLeft, CheckCircle2, Loader2, Mail, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -97,7 +97,17 @@ export default function Auth() {
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<AuthMode>("signup");
   const [lastEmail, setLastEmail] = useState<string | null>(null);
+  const [providerChecks, setProviderChecks] = useState<Record<OAuthProvider, ProviderCheck>>(defaultProviderChecks);
   const redirectTo = new URLSearchParams(location.search).get("redirect") || "/dashboard";
+
+  const refreshOAuthChecks = useCallback(async () => {
+    setProviderChecks(defaultProviderChecks);
+    const [google, apple] = await Promise.all([
+      verifyOAuthProvider("google", redirectTo),
+      verifyOAuthProvider("apple", redirectTo),
+    ]);
+    setProviderChecks({ google, apple });
+  }, [redirectTo]);
 
   useEffect(() => {
     try {
@@ -112,8 +122,26 @@ export default function Auth() {
     if (!authLoading && user) navigate(redirectTo, { replace: true });
   }, [user, authLoading, navigate, redirectTo]);
 
-  const handleOAuth = async (provider: "google" | "apple") => {
+  useEffect(() => {
+    void refreshOAuthChecks();
+  }, [refreshOAuthChecks]);
+
+  const handleOAuth = async (provider: OAuthProvider) => {
+    const existingCheck = providerChecks[provider];
+    if (existingCheck.enabled === false) {
+      toast.error(`${providerLabels[provider]} sign-in needs setup`, { description: existingCheck.message });
+      return;
+    }
+
     setBusy(true);
+    const latestCheck = await verifyOAuthProvider(provider, redirectTo);
+    setProviderChecks((current) => ({ ...current, [provider]: latestCheck }));
+    if (latestCheck.enabled === false) {
+      setBusy(false);
+      toast.error(`${providerLabels[provider]} sign-in needs setup`, { description: latestCheck.message });
+      return;
+    }
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
@@ -122,7 +150,12 @@ export default function Auth() {
       },
     });
     if (error) {
-      toast.error(error.message || `Couldn't continue with ${provider}. Try again.`);
+      const message = oauthSetupMessage(provider, error.message);
+      toast.error(`${providerLabels[provider]} sign-in failed`, { description: message });
+      setProviderChecks((current) => ({
+        ...current,
+        [provider]: { checking: false, enabled: false, message },
+      }));
       setBusy(false);
     }
   };
