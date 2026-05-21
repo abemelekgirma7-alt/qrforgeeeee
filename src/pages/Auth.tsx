@@ -20,7 +20,8 @@ type ProviderCheck = {
 };
 
 const LAST_EMAIL_KEY = "qrforge.lastAccountEmail";
-const SUPABASE_AUTH_URL = `${import.meta.env.VITE_SUPABASE_URL}/auth/v1`;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const SUPABASE_AUTH_URL = SUPABASE_URL ? `${SUPABASE_URL}/auth/v1` : undefined;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 const providerLabels: Record<OAuthProvider, string> = {
