@@ -1,18 +1,92 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Apple, ArrowLeft, Loader2, Mail } from "lucide-react";
+import { AlertCircle, Apple, ArrowLeft, CheckCircle2, Loader2, Mail, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AuthLoadingScreen } from "@/components/auth/AuthLoadingScreen";
 
 type AuthMode = "signin" | "signup";
+type OAuthProvider = "google" | "apple";
+type ProviderCheck = {
+  checking: boolean;
+  enabled: boolean | null;
+  message?: string;
+};
 
 const LAST_EMAIL_KEY = "qrforge.lastAccountEmail";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const SUPABASE_AUTH_URL = SUPABASE_URL ? `${SUPABASE_URL}/auth/v1` : undefined;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+const providerLabels: Record<OAuthProvider, string> = {
+  google: "Google",
+  apple: "Apple",
+};
+
+const defaultProviderChecks: Record<OAuthProvider, ProviderCheck> = {
+  google: { checking: true, enabled: null },
+  apple: { checking: true, enabled: null },
+};
+
+function oauthSetupMessage(provider: OAuthProvider, rawMessage?: string) {
+  const label = providerLabels[provider];
+  const message = rawMessage?.toLowerCase() ?? "";
+
+  if (message.includes("missing oauth secret")) {
+    return `${label} sign-in is enabled but missing its OAuth client secret. Open Backend → Users → Authentication Settings → Sign In Methods → ${label}, then add the Client ID and Client Secret or enable the managed provider.`;
+  }
+
+  if (message.includes("unsupported provider")) {
+    return `${label} sign-in is not fully enabled. Open Backend → Users → Authentication Settings → Sign In Methods → ${label}, enable it, and save the provider credentials.`;
+  }
+
+  return `${label} sign-in could not be verified. Open Backend → Users → Authentication Settings → Sign In Methods and confirm the provider is enabled with a valid Client ID and Client Secret.`;
+}
+
+async function verifyOAuthProvider(provider: OAuthProvider, redirectTo: string): Promise<ProviderCheck> {
+  if (!SUPABASE_AUTH_URL || !SUPABASE_ANON_KEY) {
+    return {
+      checking: false,
+      enabled: false,
+      message: "Supabase environment variables are missing. Reconnect the backend before using social sign-in.",
+    };
+  }
+
+  try {
+    const settingsResponse = await fetch(`${SUPABASE_AUTH_URL}/settings`, {
+      headers: { apikey: SUPABASE_ANON_KEY },
+    });
+    const settings = await settingsResponse.json().catch(() => null) as { external?: Record<string, boolean> } | null;
+    if (settings?.external?.[provider] === false) {
+      return { checking: false, enabled: false, message: oauthSetupMessage(provider, "unsupported provider") };
+    }
+
+    const authorizeUrl = new URL(`${SUPABASE_AUTH_URL}/authorize`);
+    authorizeUrl.searchParams.set("provider", provider);
+    authorizeUrl.searchParams.set("redirect_to", `${window.location.origin}${redirectTo}`);
+
+    const response = await fetch(authorizeUrl.toString(), {
+      headers: { apikey: SUPABASE_ANON_KEY },
+      redirect: "manual",
+    });
+
+    if (response.status === 400) {
+      const payload = await response.json().catch(() => null) as { msg?: string; error?: string; error_code?: string } | null;
+      const rawMessage = payload?.msg || payload?.error || payload?.error_code;
+      return { checking: false, enabled: false, message: oauthSetupMessage(provider, rawMessage) };
+    }
+
+    return { checking: false, enabled: true };
+  } catch {
+    return { checking: false, enabled: null, message: `Couldn't verify ${providerLabels[provider]} sign-in setup. Try again, or check the provider settings in Backend → Users → Authentication Settings.` };
+  }
+}
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -24,7 +98,17 @@ export default function Auth() {
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<AuthMode>("signup");
   const [lastEmail, setLastEmail] = useState<string | null>(null);
+  const [providerChecks, setProviderChecks] = useState<Record<OAuthProvider, ProviderCheck>>(defaultProviderChecks);
   const redirectTo = new URLSearchParams(location.search).get("redirect") || "/dashboard";
+
+  const refreshOAuthChecks = useCallback(async () => {
+    setProviderChecks(defaultProviderChecks);
+    const [google, apple] = await Promise.all([
+      verifyOAuthProvider("google", redirectTo),
+      verifyOAuthProvider("apple", redirectTo),
+    ]);
+    setProviderChecks({ google, apple });
+  }, [redirectTo]);
 
   useEffect(() => {
     try {
@@ -39,8 +123,26 @@ export default function Auth() {
     if (!authLoading && user) navigate(redirectTo, { replace: true });
   }, [user, authLoading, navigate, redirectTo]);
 
-  const handleOAuth = async (provider: "google" | "apple") => {
+  useEffect(() => {
+    void refreshOAuthChecks();
+  }, [refreshOAuthChecks]);
+
+  const handleOAuth = async (provider: OAuthProvider) => {
+    const existingCheck = providerChecks[provider];
+    if (existingCheck.enabled === false) {
+      toast.error(`${providerLabels[provider]} sign-in needs setup`, { description: existingCheck.message });
+      return;
+    }
+
     setBusy(true);
+    const latestCheck = await verifyOAuthProvider(provider, redirectTo);
+    setProviderChecks((current) => ({ ...current, [provider]: latestCheck }));
+    if (latestCheck.enabled === false) {
+      setBusy(false);
+      toast.error(`${providerLabels[provider]} sign-in needs setup`, { description: latestCheck.message });
+      return;
+    }
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
@@ -49,7 +151,12 @@ export default function Auth() {
       },
     });
     if (error) {
-      toast.error(error.message || `Couldn't continue with ${provider}. Try again.`);
+      const message = oauthSetupMessage(provider, error.message);
+      toast.error(`${providerLabels[provider]} sign-in failed`, { description: message });
+      setProviderChecks((current) => ({
+        ...current,
+        [provider]: { checking: false, enabled: false, message },
+      }));
       setBusy(false);
     }
   };
@@ -198,12 +305,14 @@ export default function Auth() {
             </div>
           )}
 
+          <OAuthSetupCheck checks={providerChecks} onRefresh={refreshOAuthChecks} />
+
           <div className="mt-6 grid gap-2">
             <Button
               variant="outline"
               type="button"
               onClick={() => handleOAuth("google")}
-              disabled={busy}
+              disabled={busy || providerChecks.google.enabled === false}
               className="h-11"
             >
               <GoogleIcon className="mr-2 h-4 w-4" /> Continue with Google
@@ -212,7 +321,7 @@ export default function Auth() {
               variant="outline"
               type="button"
               onClick={() => handleOAuth("apple")}
-              disabled={busy}
+              disabled={busy || providerChecks.apple.enabled === false}
               className="h-11"
             >
               <Apple className="mr-2 h-4 w-4" /> Continue with Apple
@@ -302,6 +411,50 @@ export default function Auth() {
         </div>
       </div>
     </div>
+  );
+}
+
+function OAuthSetupCheck({
+  checks,
+  onRefresh,
+}: {
+  checks: Record<OAuthProvider, ProviderCheck>;
+  onRefresh: () => void;
+}) {
+  const failedProviders = (Object.keys(checks) as OAuthProvider[]).filter((provider) => checks[provider].enabled === false);
+  const checking = (Object.keys(checks) as OAuthProvider[]).some((provider) => checks[provider].checking);
+
+  if (checking) {
+    return (
+      <div className="mt-5 flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking Google and Apple OAuth setup…
+      </div>
+    );
+  }
+
+  if (failedProviders.length === 0) {
+    return (
+      <div className="mt-5 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+        <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Google and Apple OAuth providers are enabled.
+      </div>
+    );
+  }
+
+  return (
+    <Alert variant="destructive" className="mt-5">
+      <AlertCircle className="h-4 w-4" />
+      <AlertTitle>OAuth provider setup needs attention</AlertTitle>
+      <AlertDescription className="space-y-3">
+        <ul className="list-disc space-y-2 pl-4">
+          {failedProviders.map((provider) => (
+            <li key={provider}>{checks[provider].message}</li>
+          ))}
+        </ul>
+        <Button type="button" variant="outline" size="sm" onClick={onRefresh} className="h-8">
+          <RefreshCw className="mr-2 h-3.5 w-3.5" /> Recheck setup
+        </Button>
+      </AlertDescription>
+    </Alert>
   );
 }
 
