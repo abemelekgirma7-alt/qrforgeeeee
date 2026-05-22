@@ -1,92 +1,19 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { AlertCircle, Apple, ArrowLeft, CheckCircle2, Loader2, Mail, RefreshCw } from "lucide-react";
+import { ArrowLeft, Loader2, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable/index";
 import { useAuth } from "@/hooks/useAuth";
 import { AuthLoadingScreen } from "@/components/auth/AuthLoadingScreen";
 
 type AuthMode = "signin" | "signup";
-type OAuthProvider = "google" | "apple";
-type ProviderCheck = {
-  checking: boolean;
-  enabled: boolean | null;
-  message?: string;
-};
 
 const LAST_EMAIL_KEY = "qrforge.lastAccountEmail";
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const SUPABASE_AUTH_URL = SUPABASE_URL ? `${SUPABASE_URL}/auth/v1` : undefined;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-
-const providerLabels: Record<OAuthProvider, string> = {
-  google: "Google",
-  apple: "Apple",
-};
-
-const defaultProviderChecks: Record<OAuthProvider, ProviderCheck> = {
-  google: { checking: true, enabled: null },
-  apple: { checking: true, enabled: null },
-};
-
-function oauthSetupMessage(provider: OAuthProvider, rawMessage?: string) {
-  const label = providerLabels[provider];
-  const message = rawMessage?.toLowerCase() ?? "";
-
-  if (message.includes("missing oauth secret")) {
-    return `${label} sign-in is enabled but missing its OAuth client secret. Open Backend → Users → Authentication Settings → Sign In Methods → ${label}, then add the Client ID and Client Secret or enable the managed provider.`;
-  }
-
-  if (message.includes("unsupported provider")) {
-    return `${label} sign-in is not fully enabled. Open Backend → Users → Authentication Settings → Sign In Methods → ${label}, enable it, and save the provider credentials.`;
-  }
-
-  return `${label} sign-in could not be verified. Open Backend → Users → Authentication Settings → Sign In Methods and confirm the provider is enabled with a valid Client ID and Client Secret.`;
-}
-
-async function verifyOAuthProvider(provider: OAuthProvider, redirectTo: string): Promise<ProviderCheck> {
-  if (!SUPABASE_AUTH_URL || !SUPABASE_ANON_KEY) {
-    return {
-      checking: false,
-      enabled: false,
-      message: "Supabase environment variables are missing. Reconnect the backend before using social sign-in.",
-    };
-  }
-
-  try {
-    const settingsResponse = await fetch(`${SUPABASE_AUTH_URL}/settings`, {
-      headers: { apikey: SUPABASE_ANON_KEY },
-    });
-    const settings = await settingsResponse.json().catch(() => null) as { external?: Record<string, boolean> } | null;
-    if (settings?.external?.[provider] === false) {
-      return { checking: false, enabled: false, message: oauthSetupMessage(provider, "unsupported provider") };
-    }
-
-    const authorizeUrl = new URL(`${SUPABASE_AUTH_URL}/authorize`);
-    authorizeUrl.searchParams.set("provider", provider);
-    authorizeUrl.searchParams.set("redirect_to", `${window.location.origin}${redirectTo}`);
-
-    const response = await fetch(authorizeUrl.toString(), {
-      headers: { apikey: SUPABASE_ANON_KEY },
-      redirect: "manual",
-    });
-
-    if (response.status === 400) {
-      const payload = await response.json().catch(() => null) as { msg?: string; error?: string; error_code?: string } | null;
-      const rawMessage = payload?.msg || payload?.error || payload?.error_code;
-      return { checking: false, enabled: false, message: oauthSetupMessage(provider, rawMessage) };
-    }
-
-    return { checking: false, enabled: true };
-  } catch {
-    return { checking: false, enabled: null, message: `Couldn't verify ${providerLabels[provider]} sign-in setup. Try again, or check the provider settings in Backend → Users → Authentication Settings.` };
-  }
-}
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -98,17 +25,7 @@ export default function Auth() {
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<AuthMode>("signup");
   const [lastEmail, setLastEmail] = useState<string | null>(null);
-  const [providerChecks, setProviderChecks] = useState<Record<OAuthProvider, ProviderCheck>>(defaultProviderChecks);
   const redirectTo = new URLSearchParams(location.search).get("redirect") || "/dashboard";
-
-  const refreshOAuthChecks = useCallback(async () => {
-    setProviderChecks(defaultProviderChecks);
-    const [google, apple] = await Promise.all([
-      verifyOAuthProvider("google", redirectTo),
-      verifyOAuthProvider("apple", redirectTo),
-    ]);
-    setProviderChecks({ google, apple });
-  }, [redirectTo]);
 
   useEffect(() => {
     try {
@@ -123,40 +40,22 @@ export default function Auth() {
     if (!authLoading && user) navigate(redirectTo, { replace: true });
   }, [user, authLoading, navigate, redirectTo]);
 
-  useEffect(() => {
-    void refreshOAuthChecks();
-  }, [refreshOAuthChecks]);
-
-  const handleOAuth = async (provider: OAuthProvider) => {
-    const existingCheck = providerChecks[provider];
-    if (existingCheck.enabled === false) {
-      toast.error(`${providerLabels[provider]} sign-in needs setup`, { description: existingCheck.message });
-      return;
-    }
-
+  const handleGoogle = async () => {
     setBusy(true);
-    const latestCheck = await verifyOAuthProvider(provider, redirectTo);
-    setProviderChecks((current) => ({ ...current, [provider]: latestCheck }));
-    if (latestCheck.enabled === false) {
-      setBusy(false);
-      toast.error(`${providerLabels[provider]} sign-in needs setup`, { description: latestCheck.message });
-      return;
-    }
-
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: `${window.location.origin}${redirectTo}`,
-        queryParams: provider === "google" ? { prompt: "select_account" } : undefined,
-      },
-    });
-    if (error) {
-      const message = oauthSetupMessage(provider, error.message);
-      toast.error(`${providerLabels[provider]} sign-in failed`, { description: message });
-      setProviderChecks((current) => ({
-        ...current,
-        [provider]: { checking: false, enabled: false, message },
-      }));
+    try {
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: `${window.location.origin}${redirectTo}`,
+        extraParams: { prompt: "select_account" },
+      });
+      if (result.error) {
+        toast.error("Google sign-in failed", { description: result.error.message || "Please try again." });
+        setBusy(false);
+        return;
+      }
+      if (result.redirected) return;
+      navigate(redirectTo, { replace: true });
+    } catch (err) {
+      toast.error("Google sign-in failed", { description: err instanceof Error ? err.message : "Unknown error" });
       setBusy(false);
     }
   };
@@ -191,12 +90,8 @@ export default function Auth() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
-      return toast.error("Please enter your name.");
-    }
-    if (password.length < 6) {
-      return toast.error("Password must be at least 6 characters.");
-    }
+    if (!name.trim()) return toast.error("Please enter your name.");
+    if (password.length < 6) return toast.error("Password must be at least 6 characters.");
     setBusy(true);
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
@@ -230,7 +125,6 @@ export default function Auth() {
       return toast.error("That email already has an account. Please sign in instead.");
     }
     rememberEmail(email);
-    // If email confirmation is required, no session is returned. Try signing in directly.
     if (!data.session) {
       const { error: signInErr } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (signInErr) {
@@ -240,7 +134,6 @@ export default function Auth() {
         return;
       }
     }
-    // Safety-net: ensure a profile row exists even if the DB trigger ever fails silently.
     try {
       const { data: sess } = await supabase.auth.getSession();
       const uid = sess.session?.user.id;
@@ -269,10 +162,7 @@ export default function Auth() {
   return (
     <div className="min-h-screen bg-gradient-soft">
       <div className="container pt-8">
-        <Link
-          to="/"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary"
-        >
+        <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary">
           <ArrowLeft className="h-4 w-4" /> Back to home
         </Link>
       </div>
@@ -305,26 +195,9 @@ export default function Auth() {
             </div>
           )}
 
-          <OAuthSetupCheck checks={providerChecks} onRefresh={refreshOAuthChecks} />
-
           <div className="mt-6 grid gap-2">
-            <Button
-              variant="outline"
-              type="button"
-              onClick={() => handleOAuth("google")}
-              disabled={busy || providerChecks.google.enabled === false}
-              className="h-11"
-            >
+            <Button variant="outline" type="button" onClick={handleGoogle} disabled={busy} className="h-11">
               <GoogleIcon className="mr-2 h-4 w-4" /> Continue with Google
-            </Button>
-            <Button
-              variant="outline"
-              type="button"
-              onClick={() => handleOAuth("apple")}
-              disabled={busy || providerChecks.apple.enabled === false}
-              className="h-11"
-            >
-              <Apple className="mr-2 h-4 w-4" /> Continue with Apple
             </Button>
           </div>
 
@@ -344,24 +217,11 @@ export default function Auth() {
               <form onSubmit={handleSignIn} className="mt-4 grid gap-3">
                 <div className="grid gap-1.5">
                   <Label htmlFor="si-email">Email</Label>
-                  <Input
-                    id="si-email"
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
+                  <Input id="si-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
                 </div>
                 <div className="grid gap-1.5">
                   <Label htmlFor="si-pw">Password</Label>
-                  <Input
-                    id="si-pw"
-                    type="password"
-                    required
-                    minLength={6}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
+                  <Input id="si-pw" type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} />
                 </div>
                 <Button type="submit" disabled={busy} className="mt-2 h-11">
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Mail className="mr-2 h-4 w-4" /> Sign in</>}
@@ -373,34 +233,15 @@ export default function Auth() {
               <form onSubmit={handleSignUp} className="mt-4 grid gap-3">
                 <div className="grid gap-1.5">
                   <Label htmlFor="su-name">Name</Label>
-                  <Input
-                    id="su-name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Your name"
-                    required
-                  />
+                  <Input id="su-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" required />
                 </div>
                 <div className="grid gap-1.5">
                   <Label htmlFor="su-email">Email</Label>
-                  <Input
-                    id="su-email"
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
+                  <Input id="su-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
                 </div>
                 <div className="grid gap-1.5">
                   <Label htmlFor="su-pw">Password</Label>
-                  <Input
-                    id="su-pw"
-                    type="password"
-                    required
-                    minLength={6}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
+                  <Input id="su-pw" type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} />
                 </div>
                 <Button type="submit" disabled={busy} className="mt-2 h-11">
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create account"}
@@ -414,54 +255,10 @@ export default function Auth() {
   );
 }
 
-function OAuthSetupCheck({
-  checks,
-  onRefresh,
-}: {
-  checks: Record<OAuthProvider, ProviderCheck>;
-  onRefresh: () => void;
-}) {
-  const failedProviders = (Object.keys(checks) as OAuthProvider[]).filter((provider) => checks[provider].enabled === false);
-  const checking = (Object.keys(checks) as OAuthProvider[]).some((provider) => checks[provider].checking);
-
-  if (checking) {
-    return (
-      <div className="mt-5 flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking Google and Apple OAuth setup…
-      </div>
-    );
-  }
-
-  if (failedProviders.length === 0) {
-    return (
-      <div className="mt-5 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
-        <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Google and Apple OAuth providers are enabled.
-      </div>
-    );
-  }
-
+function GoogleIcon({ className }: { className?: string }) {
   return (
-    <Alert variant="destructive" className="mt-5">
-      <AlertCircle className="h-4 w-4" />
-      <AlertTitle>OAuth provider setup needs attention</AlertTitle>
-      <AlertDescription className="space-y-3">
-        <ul className="list-disc space-y-2 pl-4">
-          {failedProviders.map((provider) => (
-            <li key={provider}>{checks[provider].message}</li>
-          ))}
-        </ul>
-        <Button type="button" variant="outline" size="sm" onClick={onRefresh} className="h-8">
-          <RefreshCw className="mr-2 h-3.5 w-3.5" /> Recheck setup
-        </Button>
-      </AlertDescription>
-    </Alert>
-  );
-}
-
-function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" {...props}>
-      <path fill="#EA4335" d="M12 10.2v3.9h5.5c-.2 1.4-1.6 4-5.5 4-3.3 0-6-2.7-6-6.1S8.7 6 12 6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.7 3.5 14.6 2.6 12 2.6 6.8 2.6 2.6 6.8 2.6 12s4.2 9.4 9.4 9.4c5.4 0 9-3.8 9-9.2 0-.6-.1-1-.1-1.5H12z"/>
+    <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path fill="#EA4335" d="M12 10.2v3.9h5.5c-.24 1.4-1.7 4.1-5.5 4.1-3.3 0-6-2.7-6-6.1s2.7-6.1 6-6.1c1.9 0 3.2.8 3.9 1.5l2.7-2.6C16.9 3.2 14.7 2.2 12 2.2 6.5 2.2 2.1 6.6 2.1 12.1S6.5 22 12 22c6.9 0 9.5-4.8 9.5-7.3 0-.5 0-.9-.1-1.3H12z" />
     </svg>
   );
 }
