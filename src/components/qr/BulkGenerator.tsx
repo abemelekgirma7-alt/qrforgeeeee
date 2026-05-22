@@ -521,18 +521,18 @@ export function BulkGenerator() {
         </Collapsible>
 
         {/* ── GENERATE + RESET ── */}
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
           <Button
             onClick={doGenerate}
             size="lg"
-            className="flex-1 bg-gradient-hero text-primary-foreground hover:opacity-95"
+            className="flex-1 h-14 text-base font-semibold bg-gradient-hero text-primary-foreground hover:opacity-95"
             disabled={!rows.length}
           >
-            <Sparkles className="mr-2 h-4 w-4" />
+            <Sparkles className="mr-2 h-5 w-5" />
             Generate {rows.length} QR code{rows.length !== 1 ? "s" : ""}
           </Button>
           <Button
-            size="lg"
+            size="sm"
             variant="outline"
             type="button"
             className="sm:w-auto"
@@ -552,7 +552,7 @@ export function BulkGenerator() {
               if (fileRef.current) fileRef.current.value = "";
             }}
           >
-            Reset
+            Start over
           </Button>
         </div>
 

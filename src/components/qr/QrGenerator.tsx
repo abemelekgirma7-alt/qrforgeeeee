@@ -422,11 +422,11 @@ export function QrGenerator({
           </CollapsibleContent>
         </Collapsible>
 
-        <div className="mt-8 flex flex-col gap-2 sm:flex-row">
+        <div className="mt-8 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
           <Button
             size="lg"
             ref={generateBtnRef}
-            className="flex-1 bg-gradient-hero text-primary-foreground hover:opacity-95"
+            className="flex-1 h-14 text-base font-semibold bg-gradient-hero text-primary-foreground hover:opacity-95"
             onClick={() => {
               if (formError) {
                 setSubmitError(formError);
@@ -437,10 +437,10 @@ export function QrGenerator({
             }}
           >
             Generate QR code
-            <Sparkles className="ml-2 h-4 w-4" />
+            <Sparkles className="ml-2 h-5 w-5" />
           </Button>
           <Button
-            size="lg"
+            size="sm"
             variant="outline"
             type="button"
             className="sm:w-auto"
