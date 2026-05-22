@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "scan_events_insert_valid_public" ON public.scan_events;
