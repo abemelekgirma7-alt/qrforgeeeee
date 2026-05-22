@@ -41,20 +41,19 @@ export default function Auth() {
 
   const handleGoogle = async () => {
     setBusy(true);
-    try {
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: `${window.location.origin}${redirectTo}`,
-        extraParams: { prompt: "select_account" },
-      });
-      if (result.error) {
-        toast.error("Google sign-in failed", { description: result.error.message || "Please try again." });
-        setBusy(false);
-        return;
-      }
-      if (result.redirected) return;
-      navigate(redirectTo, { replace: true });
-    } catch (err) {
-      toast.error("Google sign-in failed", { description: err instanceof Error ? err.message : "Unknown error" });
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}${redirectTo}`,
+        queryParams: { prompt: "select_account" },
+      },
+    });
+    if (error) {
+      const msg = error.message?.toLowerCase() ?? "";
+      const description = msg.includes("missing oauth secret") || msg.includes("unsupported provider")
+        ? "Google provider isn't fully configured in the backend. Open Backend → Users → Auth Settings → Google and enable it (or add your Client ID and Secret)."
+        : error.message || "Please try again.";
+      toast.error("Google sign-in failed", { description });
       setBusy(false);
     }
   };
