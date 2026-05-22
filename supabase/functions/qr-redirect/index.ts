@@ -81,9 +81,19 @@ Deno.serve(async (req) => {
     return fallbackPage("Scan limit reached", "This QR has reached its maximum number of scans.");
   }
 
-  // Block-list check
-  const { data: blocks } = await supabase.from("blocked_urls").select("pattern");
-  if (blocks?.some((b) => qr.destination.includes(b.pattern))) {
+  // Validate destination scheme — only http/https allowed
+  if (!/^https?:\/\//i.test(qr.destination)) {
+    return fallbackPage("Invalid destination", "Only HTTP/HTTPS destinations are supported.", 400);
+  }
+
+  // Block-list check — fail closed on query error
+  const { data: blocks, error: blocksError } = await supabase
+    .from("blocked_urls")
+    .select("domain");
+  if (blocksError) {
+    return fallbackPage("Safety check failed", "Unable to verify destination safety. Please try again later.", 503);
+  }
+  if (blocks?.some((b) => qr.destination.includes(b.domain))) {
     return fallbackPage("Blocked destination", "This destination is flagged as unsafe.", 403);
   }
 
