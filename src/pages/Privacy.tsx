@@ -300,13 +300,17 @@ export default function Privacy() {
 
           <Section title="20. Contact Us">
             <p>
-              If you have any questions about this Privacy Policy, you can contact us:
+              If you have any questions about this Privacy Policy, please reach out via our contact page:
             </p>
             <ul className="list-disc space-y-2 pl-5">
-              <li>By email: <a href="mailto:support@qrforge.com" className="text-primary hover:underline">support@qrforge.com</a></li>
-              <li>By visiting our contact page: <Link to="/contact" className="text-primary hover:underline">https://onlineqrcodegenerator.lovable.app/contact</Link></li>
+              <li>
+                <Link to="/contact" className="text-primary hover:underline">
+                  Visit our Contact page
+                </Link>
+              </li>
             </ul>
           </Section>
+
         </article>
       </main>
       <Footer />
