@@ -5,7 +5,6 @@ function App() {
   const [text, setText] = useState("");
   const [result, setResult] = useState("");
 
-  // ✅ THIS WAS MISSING (your bug)
   async function generateQR() {
     try {
       const res = await fetch("https://qrforgeeeee.workers.dev/generate", {
@@ -21,6 +20,7 @@ function App() {
       const data = await res.json();
       setResult(JSON.stringify(data));
     } catch (err) {
+      console.log(err);
       setResult("Error connecting to Worker");
     }
   }
