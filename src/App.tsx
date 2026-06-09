@@ -12,9 +12,7 @@ function App() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          text: text,
-        }),
+        body: JSON.stringify({ text }),
       });
 
       const data = await res.json();
@@ -26,7 +24,7 @@ function App() {
   }
 
   return (
-    <div>
+    <div className="container">
       <h1>QRForge</h1>
 
       <input
